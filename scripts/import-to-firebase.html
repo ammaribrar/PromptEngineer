@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Supabase Data to Firebase</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #4285f4;
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #357ae8;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Supabase to Firebase Migration Tool</h1>
+        
+        <div class="step">
+            <h3>Step 1: Initialize Firebase</h3>
+            <p>Enter your Firebase configuration:</p>
+            <textarea id="firebaseConfig" placeholder='{
+  "apiKey": "AIzaSyAi9mhV1HFDs62d1uTyJzblYE-D5UH6S6g",
+  "authDomain": "prompt-engineer-13d50.firebaseapp.com",
+  "projectId": "prompt-engineer-13d50",
+  "storageBucket": "prompt-engineer-13d50.firebasestorage.app",
+  "messagingSenderId": "902007722534",
+  "appId": "1:902007722534:web:2d2e48c155b55466148ce7"
+}'></textarea>
+            <button onclick="initializeFirebase()">Initialize Firebase</button>
+            <div id="initStatus"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Load Supabase Export</h3>
+            <p>Paste your exported JSON data or upload the file:</p>
+            <input type="file" id="fileInput" accept=".json" onchange="loadFile(event)">
+            <textarea id="supabaseData" placeholder="Paste exported JSON data here..."></textarea>
+            <button onclick="validateData()">Validate Data</button>
+            <div id="validateStatus"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Import to Firebase</h3>
+            <p>Click to start the migration:</p>
+            <button onclick="importData()" id="importBtn" disabled>Import to Firebase</button>
+            <div id="importStatus"></div>
+        </div>
+
+        <div class="step">
+            <h3>Migration Progress</h3>
+            <div id="progress"></div>
+        </div>
+    </div>
+
+    <script>
+        let firebaseApp = null;
+        let db = null;
+        let exportData = null;
+
+        function initializeFirebase() {
+            try {
+                const configText = document.getElementById('firebaseConfig').value;
+                const config = JSON.parse(configText);
+                
+                if (!firebaseApp) {
+                    firebase.initializeApp(config);
+                    db = firebase.firestore();
+                    firebaseApp = firebase.app();
+                }
+                
+                document.getElementById('initStatus').innerHTML = 
+                    '<div class="status success">✅ Firebase initialized successfully!</div>';
+            } catch (error) {
+                document.getElementById('initStatus').innerHTML = 
+                    `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function loadFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('supabaseData').value = e.target.result;
+                    validateData();
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function validateData() {
+            try {
+                const dataText = document.getElementById('supabaseData').value;
+                exportData = JSON.parse(dataText);
+                
+                if (!exportData.clients) exportData.clients = [];
+                if (!exportData.scenarios) exportData.scenarios = [];
+                if (!exportData.simulation_runs) exportData.simulation_runs = [];
+                if (!exportData.final_prompt_suggestions) exportData.final_prompt_suggestions = [];
+                
+                const summary = `
+                    <div class="status success">
+                        ✅ Data validated!<br>
+                        Clients: ${exportData.clients.length}<br>
+                        Scenarios: ${exportData.scenarios.length}<br>
+                        Simulation Runs: ${exportData.simulation_runs.length}<br>
+                        Final Prompts: ${exportData.final_prompt_suggestions.length}
+                    </div>
+                `;
+                document.getElementById('validateStatus').innerHTML = summary;
+                document.getElementById('importBtn').disabled = !firebaseApp;
+            } catch (error) {
+                document.getElementById('validateStatus').innerHTML = 
+                    `<div class="status error">❌ Invalid JSON: ${error.message}</div>`;
+            }
+        }
+
+        function convertTimestamp(timestamp) {
+            if (!timestamp) return firebase.firestore.Timestamp.now();
+            if (timestamp instanceof firebase.firestore.Timestamp) return timestamp;
+            if (typeof timestamp === 'string') {
+                return firebase.firestore.Timestamp.fromDate(new Date(timestamp));
+            }
+            return firebase.firestore.Timestamp.now();
+        }
+
+        async function importCollection(collectionName, data) {
+            if (!data || data.length === 0) {
+                return { success: true, count: 0 };
+            }
+
+            const progressDiv = document.getElementById('progress');
+            progressDiv.innerHTML += `<p>📦 Importing ${collectionName} (${data.length} documents)...</p>`;
+            
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const doc of data) {
+                try {
+                    const docData = { ...doc };
+                    const docId = docData.id;
+                    delete docData.id;
+                    
+                    // Convert timestamps
+                    if (docData.created_at) {
+                        docData.created_at = convertTimestamp(docData.created_at);
+                    }
+                    if (docData.updated_at) {
+                        docData.updated_at = convertTimestamp(docData.updated_at);
+                    }
+                    
+                    // Ensure arrays are arrays
+                    if (docData.conversation && !Array.isArray(docData.conversation)) {
+                        docData.conversation = [];
+                    }
+                    if (docData.prompt_improvement_suggestions && !Array.isArray(docData.prompt_improvement_suggestions)) {
+                        docData.prompt_improvement_suggestions = [];
+                    }
+                    if (docData.source_simulation_run_ids && !Array.isArray(docData.source_simulation_run_ids)) {
+                        docData.source_simulation_run_ids = [];
+                    }
+                    
+                    await db.collection(collectionName).doc(docId).set(docData);
+                    successCount++;
+                } catch (error) {
+                    console.error(`Error importing document ${doc.id}:`, error);
+                    errorCount++;
+                }
+            }
+            
+            progressDiv.innerHTML += `<p class="status ${errorCount === 0 ? 'success' : 'error'}">
+                ✅ ${collectionName}: ${successCount} imported${errorCount > 0 ? `, ${errorCount} errors` : ''}
+            </p>`;
+            
+            return { success: errorCount === 0, count: successCount };
+        }
+
+        async function importData() {
+            if (!firebaseApp || !exportData) {
+                alert('Please initialize Firebase and load data first!');
+                return;
+            }
+
+            document.getElementById('importBtn').disabled = true;
+            document.getElementById('progress').innerHTML = '<h4>Starting migration...</h4>';
+
+            try {
+                const results = {
+                    clients: await importCollection('clients', exportData.clients),
+                    scenarios: await importCollection('scenarios', exportData.scenarios),
+                    simulation_runs: await importCollection('simulation_runs', exportData.simulation_runs),
+                    final_prompt_suggestions: await importCollection('final_prompt_suggestions', exportData.final_prompt_suggestions),
+                };
+
+                const total = Object.values(results).reduce((sum, r) => sum + r.count, 0);
+                
+                document.getElementById('progress').innerHTML += `
+                    <div class="status success">
+                        <h3>🎉 Migration Complete!</h3>
+                        <p>Total documents imported: ${total}</p>
+                        <ul>
+                            <li>Clients: ${results.clients.count}</li>
+                            <li>Scenarios: ${results.scenarios.count}</li>
+                            <li>Simulation Runs: ${results.simulation_runs.count}</li>
+                            <li>Final Prompts: ${results.final_prompt_suggestions.count}</li>
+                        </ul>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('progress').innerHTML += 
+                    `<div class="status error">❌ Migration failed: ${error.message}</div>`;
+            } finally {
+                document.getElementById('importBtn').disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
+
