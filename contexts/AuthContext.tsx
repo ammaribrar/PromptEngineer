@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getClientAuth } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth!, (user) => {
+        const auth = getClientAuth();
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
     });
@@ -29,21 +35,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+        const auth = getClientAuth();
     if (!auth) throw new Error('Auth not initialized');
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signUp = async (email: string, password: string) => {
+        const auth = getClientAuth();
     if (!auth) throw new Error('Auth not initialized');
     await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const logout = async () => {
+        const auth = getClientAuth();
     if (!auth) throw new Error('Auth not initialized');
     await signOut(auth);
   };
 
   const resetPassword = async (email: string) => {
+        const auth = getClientAuth();
     if (!auth) throw new Error('Auth not initialized');
     await sendPasswordResetEmail(auth, email);
   };

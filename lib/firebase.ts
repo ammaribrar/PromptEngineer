@@ -15,32 +15,37 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app: FirebaseApp;
-let db: Firestore;
 let auth: Auth | null = null;
 let analytics: Analytics | null = null;
 
-if (typeof window !== 'undefined') {
-  // Client-side initialization
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-    analytics = getAnalytics(app);
-  } else {
-    app = getApps()[0];
-  }
-  db = getFirestore(app);
-  auth = getAuth(app);
-} else {
-  // Server-side initialization
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApps()[0];
-  }
-  db = getFirestore(app);
-}
+// Initialize Firebase App
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-export { db, auth, analytics };
+// Initialize services
+const db = getFirestore(app);
+
+// Lazy load Auth and Analytics to ensure they only run on the client
+const getClientAuth = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  if (!auth) {
+    auth = getAuth(app);
+  }
+  return auth;
+};
+
+const getClientAnalytics = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  if (!analytics) {
+    analytics = getAnalytics(app);
+  }
+  return analytics;
+};
+
+export { db, getClientAuth, getClientAnalytics };
 export type { User };
 
 // Helper functions to convert Firestore timestamps
