@@ -15,21 +15,30 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
+let app: FirebaseApp;
 let auth: Auth | null = null;
 let analytics: Analytics | null = null;
+let db: Firestore;
 
-// Initialize Firebase App
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-
-// Initialize services
-const db = getFirestore(app);
+// Only initialize Firebase on the client-side
+if (typeof window !== 'undefined') {
+  // Check if Firebase app is already initialized
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
+  }
+  
+  // Initialize Firestore
+  db = getFirestore(app);
+}
 
 // Lazy load Auth and Analytics to ensure they only run on the client
 const getClientAuth = () => {
   if (typeof window === 'undefined') {
     return null;
   }
-  if (!auth) {
+  if (!auth && typeof window !== 'undefined') {
     auth = getAuth(app);
   }
   return auth;
@@ -39,7 +48,7 @@ const getClientAnalytics = () => {
   if (typeof window === 'undefined') {
     return null;
   }
-  if (!analytics) {
+  if (!analytics && typeof window !== 'undefined') {
     analytics = getAnalytics(app);
   }
   return analytics;

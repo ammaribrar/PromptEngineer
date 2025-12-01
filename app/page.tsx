@@ -48,6 +48,11 @@ export default function Home() {
   const [clients, setClients] = useState<ClientWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [newClientName, setNewClientName] = useState('');
   const [creating, setCreating] = useState(false);
   const [deleteClientId, setDeleteClientId] = useState<string | null>(null);
